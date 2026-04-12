@@ -1,0 +1,177 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Overview";
+}
+
+<section class="section-intro section-intro--compact">
+    <div>
+        <span class="eyebrow">Available demos</span>
+        <h1 class="page-title">Choose the request flow you want to inspect.</h1>
+        <p class="section-intro__text">
+            Same domain and infrastructure underneath. Different application boundaries, pipeline shapes, and tradeoffs.
+        </p>
+    </div>
+</section>
+
+<div class="demo-grid">
+    <a asp-page="/Modules/DirectDi/OrderProcessing" class="demo-card demo-card--cyan demo-card--static">
+        <div class="demo-card__layout">
+            <div class="demo-card__primary">
+                <div class="demo-card__top">
+                    <div>
+                        <span class="demo-badge">Demo 1</span>
+                        <h3>Direct DI Service Call</h3>
+                        <p class="demo-card__summary">
+                            The Razor Page injects one application service and lets it orchestrate the workflow from input to external integrations.
+                        </p>
+                    </div>
+                    <span class="demo-tag">Order Processing</span>
+                </div>
+
+                <div class="demo-flow">
+                    <code>UI</code>
+                    <i class="bi bi-arrow-right"></i>
+                    <code>IOrderProcessingService</code>
+                    <i class="bi bi-arrow-right"></i>
+                    <code>Domain + Infrastructure</code>
+                </div>
+            </div>
+
+            <div class="demo-card__secondary">
+                <ul class="feature-list">
+                    <li class="feature-item positive">
+                        <i class="bi bi-check2-circle"></i>
+                        <span>Fast to explain, debug, and trace from the page.</span>
+                    </li>
+                    <li class="feature-item positive">
+                        <i class="bi bi-check2-circle"></i>
+                        <span>Clear ownership when one use case maps cleanly to one service.</span>
+                    </li>
+                    <li class="feature-item caution">
+                        <i class="bi bi-dash-circle"></i>
+                        <span>Validation and logging stay manual unless you introduce extra structure.</span>
+                    </li>
+                    <li class="feature-item caution">
+                        <i class="bi bi-dash-circle"></i>
+                        <span>Can accumulate orchestration and grow into a broad service surface.</span>
+                    </li>
+                </ul>
+
+                <div class="demo-card__footer">
+                    <span>Open order processing demo</span>
+                    <i class="bi bi-arrow-up-right"></i>
+                </div>
+            </div>
+        </div>
+    </a>
+
+    <a asp-page="/Modules/CQRS/UserRegistration" class="demo-card demo-card--amber demo-card--static">
+        <div class="demo-card__layout">
+            <div class="demo-card__primary">
+                <div class="demo-card__top">
+                    <div>
+                        <span class="demo-badge">Demo 2</span>
+                        <h3>CQRS + Dispatcher</h3>
+                        <p class="demo-card__summary">
+                            The Razor Page creates a command, dispatches it through <code>ICommandDispatcher</code>, and moves through a behavior pipeline.
+                        </p>
+                    </div>
+                    <span class="demo-tag">User Registration</span>
+                </div>
+
+                <div class="demo-flow">
+                    <code>UI</code>
+                    <i class="bi bi-arrow-right"></i>
+                    <code>ICommandDispatcher</code>
+                    <i class="bi bi-arrow-right"></i>
+                    <code>Behaviors + Handler</code>
+                </div>
+            </div>
+
+            <div class="demo-card__secondary">
+                <ul class="feature-list">
+                    <li class="feature-item positive">
+                        <i class="bi bi-check2-circle"></i>
+                        <span>Cross-cutting concerns sit in behaviors instead of the page or handler.</span>
+                    </li>
+                    <li class="feature-item positive">
+                        <i class="bi bi-check2-circle"></i>
+                        <span>Handlers stay narrowly scoped to a single command and business path.</span>
+                    </li>
+                    <li class="feature-item caution">
+                        <i class="bi bi-dash-circle"></i>
+                        <span>Introduces more ceremony and more types for a simple workflow.</span>
+                    </li>
+                    <li class="feature-item caution">
+                        <i class="bi bi-dash-circle"></i>
+                        <span>Execution becomes less direct, so the path is harder to follow at first glance.</span>
+                    </li>
+                </ul>
+
+                <div class="demo-card__footer">
+                    <span>Open registration demo</span>
+                    <i class="bi bi-arrow-up-right"></i>
+                </div>
+            </div>
+        </div>
+    </a>
+</div>
+
+
+<section class="surface-card surface-card--blue common-cases-card mt-3">
+    <div class="surface-card__header">
+        <div>
+            <span class="section-kicker">Common cases</span>
+            <h2>Typical orchestration questions in one place.</h2>
+        </div>
+        <div class="icon-badge">
+            <i class="bi bi-diagram-3"></i>
+        </div>
+    </div>
+
+    <p class="surface-card__intro">
+        These are the same 5 reference pages, grouped into one overview box instead of separate tiles. The detailed placement reasoning stays on each end page.
+    </p>
+
+    <div class="demo-flow mb-3">
+        <code>Presentation</code>
+        <i class="bi bi-arrow-right"></i>
+        <code>Application orchestration</code>
+        <i class="bi bi-arrow-right"></i>
+        <code>Domain decisions + Infrastructure side effects</code>
+    </div>
+
+    <ul class="list-unstyled d-grid gap-2 m-0 p-0">
+        <li>
+            <a class="guide-link" asp-page="/Modules/CommonCases/ExpenseApprovalAudit">
+                <span>Expense Approval + Audit Trail</span>
+                <small>Logging and audit recording after a domain-approved state change.</small>
+            </a>
+        </li>
+        <li>
+            <a class="guide-link" asp-page="/Modules/CommonCases/InvoiceDocumentPack">
+                <span>Invoice Export Pack</span>
+                <small>PDF, Word, Excel generation and file storage after Domain allows the export.</small>
+            </a>
+        </li>
+        <li>
+            <a class="guide-link" asp-page="/Modules/CommonCases/PriceListImport">
+                <span>Vendor Price List Import</span>
+                <small>Excel reading in Infrastructure, row-by-row business validation in Domain.</small>
+            </a>
+        </li>
+        <li>
+            <a class="guide-link" asp-page="/Modules/CommonCases/ContractIntake">
+                <span>Contract Intake from Word</span>
+                <small>Upload storage and Word parsing outside Domain, clause meaning inside Domain.</small>
+            </a>
+        </li>
+        <li>
+            <a class="guide-link" asp-page="/Modules/CommonCases/CustomerCrmSync">
+                <span>Customer Sync to External CRM</span>
+                <small>Outbound API calling through an infrastructure client after Application shapes the use case.</small>
+            </a>
+        </li>
+    </ul>
+</section>

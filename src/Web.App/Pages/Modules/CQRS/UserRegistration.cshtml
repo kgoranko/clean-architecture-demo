@@ -1,0 +1,217 @@
+@page
+@model UserRegistrationModel
+@{
+    ViewData["Title"] = "User Registration";
+}
+
+<section class="page-hero page-hero--amber mb-4">
+    <a asp-page="/Index" class="back-link">
+        <i class="bi bi-arrow-left"></i>
+        <span>Back to overview</span>
+    </a>
+
+    <div class="page-hero__content">
+        <div class="page-hero__copy">
+            <span class="eyebrow">Demo 2</span>
+            <h1>CQRS + Dispatcher</h1>
+            <p>
+                Registration enters the Application layer as a <code>RegisterUserCommand</code>. The command dispatcher
+                runs validation and logging behaviors before the handler performs the business workflow.
+            </p>
+        </div>
+
+        <div class="page-hero__aside">
+            <span class="info-chip">Command enters through <code>ICommandDispatcher</code></span>
+            <span class="info-chip">Behaviors absorb validation and logging concerns</span>
+            <span class="info-chip">Tradeoff: more ceremony and less direct execution flow</span>
+        </div>
+    </div>
+</section>
+
+<div class="row g-3 align-items-start">
+    <div class="col-xl-5">
+        <section class="surface-card surface-card--amber">
+            <div class="surface-card__header">
+                <div>
+                    <span class="section-kicker">Input</span>
+                    <h2>Register a user</h2>
+                </div>
+                <div class="icon-badge">
+                    <i class="bi bi-person-plus"></i>
+                </div>
+            </div>
+
+            <p class="surface-card__intro">
+                Use real input values to drive repository and domain failures. The optional email trigger remains the only deliberate infrastructure failure switch.
+            </p>
+
+            <form method="post" class="form-stack">
+                <div>
+                    <label class="form-label fw-semibold">Email</label>
+                    <input type="email" class="form-control" asp-for="Email" value="new.user@company.com" />
+                    <div class="form-text small">
+                        Existing demo users: <code>admin@company.com</code> and <code>john.doe@company.com</code>. Use either to trigger <strong>Email Already Exists</strong>. Use a non-<code>company.com</code> domain such as <code>user@gmail.com</code> to trigger <strong>Invalid Email Domain</strong>.
+                    </div>
+                </div>
+
+                <div>
+                    <label class="form-label fw-semibold">First Name</label>
+                    <input type="text" class="form-control" asp-for="FirstName" value="Jane" />
+                </div>
+
+                <div>
+                    <label class="form-label fw-semibold">Last Name</label>
+                    <input type="text" class="form-control" asp-for="LastName" value="Smith" />
+                </div>
+
+                <div>
+                    <label class="form-label fw-semibold">Email Trigger</label>
+                    <input type="text" class="form-control form-control-sm" asp-for="EmailTrigger" placeholder="fail" />
+                    <div class="form-text small">
+                        Optional demo switch. Enter <code>fail</code> to trigger <strong>Email Provider Unavailable</strong>. Leave empty for the normal email flow.
+                    </div>
+                </div>
+
+                <button type="submit" class="btn app-btn app-btn--amber">Run registration flow</button>
+            </form>
+        </section>
+
+        @if (Model.HasResult)
+        {
+            var statusClass = "status-card--danger";
+            var statusTitle = "Registration failed";
+            var statusLabel = "Error";
+
+            if (Model.IsSuccess)
+            {
+                statusClass = "status-card--success";
+                statusTitle = "Registration completed";
+                statusLabel = "Success";
+            }
+            else if (Model.IsValidationError)
+            {
+                statusClass = "status-card--warning";
+                statusTitle = "Validation blocked the command";
+                statusLabel = "Validation";
+            }
+
+            <section class="surface-card status-card mt-3 @statusClass">
+                <div class="surface-card__header">
+                    <div>
+                        <span class="section-kicker">Result</span>
+                        <h2>@statusTitle</h2>
+                    </div>
+                    <span class="status-badge">@statusLabel</span>
+                </div>
+
+                @if (Model.IsSuccess)
+                {
+                    <div class="result-banner result-banner--success">
+                        <div>
+                            <strong>User registered successfully</strong>
+                            <small>User ID: @Model.UserId</small>
+                        </div>
+                        <div class="result-banner__meta">Handler reached</div>
+                    </div>
+                }
+                else if (Model.IsValidationError)
+                {
+                    <div class="result-banner result-banner--warning">
+                        <div>
+                            <strong>Validation failed before the handler ran</strong>
+                            <small><code>ValidationBehavior</code> intercepted the command and returned a validation response.</small>
+                        </div>
+                        <div class="result-banner__meta">Behavior stop</div>
+                    </div>
+
+                    <h3 class="result-section-title">Validation feedback</h3>
+                    <div class="d-grid gap-2">
+                        @foreach (var error in Model.ValidationErrors)
+                        {
+                            <div class="step-card step-error processing-step">
+                                <div class="step-card__icon">
+                                    <i class="bi bi-exclamation-triangle"></i>
+                                </div>
+                                <div class="step-card__content">
+                                    <strong>@error.Code</strong>
+                                    <span>@error.Description</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="context-note">
+                        The behavior pipeline rejected the command before it reached the handler, which keeps business logic free from repeated input validation.
+                    </div>
+                }
+                else
+                {
+                    <div class="result-banner result-banner--danger">
+                        <div>
+                            <strong>@Model.ErrorCode</strong>
+                            <small>@Model.ErrorDescription</small>
+                        </div>
+                        <div class="result-banner__meta result-banner__meta--label">@Model.ErrorLayer</div>
+                    </div>
+
+                    <div class="context-note">
+                        The failure originated in the <strong>@Model.ErrorLayer</strong> layer and propagated back through the CQRS pipeline to the Presentation layer.
+                    </div>
+                }
+            </section>
+        }
+    </div>
+
+    <div class="col-xl-7">
+        <div class="d-grid gap-3">
+            <section class="surface-card surface-card--muted mermaid-card">
+                <div class="surface-card__header">
+                    <div>
+                        <span class="section-kicker">Pipeline</span>
+                        <h2>CQRS request path by layer</h2>
+                    </div>
+                    <div class="icon-badge">
+                        <i class="bi bi-bezier2"></i>
+                    </div>
+                </div>
+
+                <p class="surface-card__intro">
+                    The page enters the Application layer through a command dispatcher. The diagram keeps Application as the caller so each outbound dependency call and returned result stays explicit.
+                </p>
+
+                <div class="mermaid-frame">
+                    <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor P as Presentation
+    participant A as Application
+    participant D as Domain
+    participant I as Infrastructure
+
+    P->>A: Submit form
+    Note over A: Build command and enter dispatcher pipeline
+    A->>A: ValidationBehavior
+    A->>A: LoggingBehavior
+    A->>I: Check email uniqueness
+    I-->>A: Unique
+    A->>D: Validate email domain
+    D-->>A: Valid
+    A->>D: Create user
+    D-->>A: User created
+    A->>I: Save user
+    I-->>A: Persisted
+    A->>I: Raise + dispatch created event
+    I-->>A: EntityCreatedDomainEvent<User>
+    A->>I: Send welcome email
+    I-->>A: Email sent
+    A->>D: Mark email sent
+    D-->>A: User updated
+    A->>I: Save updated user
+    I-->>A: Persisted
+    A-->>P: Return result
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>

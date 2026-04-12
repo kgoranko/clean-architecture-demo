@@ -1,0 +1,243 @@
+@page
+@{
+    ViewData["Title"] = "Vendor Price List Import";
+}
+
+<section class="page-hero page-hero--amber mb-4">
+    <a asp-page="/Index" class="back-link">
+        <i class="bi bi-arrow-left"></i>
+        <span>Back to overview</span>
+    </a>
+
+    <div class="page-hero__content">
+        <div class="page-hero__copy">
+            <span class="eyebrow">Guide 3</span>
+            <h1>Vendor Price List Import</h1>
+            <p>
+                A user uploads an Excel file. Presentation deals with upload mechanics, Application starts orchestration,
+                Infrastructure reads spreadsheet rows, and Domain decides whether each price change is valid.
+            </p>
+        </div>
+
+        <div class="page-hero__aside">
+            <span class="info-chip">Uploads enter through Presentation first</span>
+            <span class="info-chip">Spreadsheet parsing stays in Infrastructure</span>
+            <span class="info-chip">Domain applies one row at a time as business changes</span>
+        </div>
+    </div>
+</section>
+
+<div class="row g-3 align-items-start">
+    <div class="col-xl-6">
+        <section class="surface-card surface-card--amber">
+            <div class="surface-card__header">
+                <div>
+                    <span class="section-kicker">Orchestration</span>
+                    <h2>Application method</h2>
+                </div>
+                <div class="icon-badge">
+                    <i class="bi bi-journal-code"></i>
+                </div>
+            </div>
+
+            <p class="surface-card__intro">
+                Informational sample only. Notice that the request is already normalized for Application; raw <code>IFormFile</code> handling belongs one layer earlier.
+            </p>
+
+            <pre class="orchestration-code"><code>internal sealed class PriceListImportService(
+    IPriceListRepository priceListRepository,
+    ISpreadsheetPriceListReader spreadsheetPriceListReader,
+    IDateTimeProvider dateTimeProvider,
+    ILogger&lt;PriceListImportService&gt; logger) : IPriceListImportService, IScopedService
+{
+    public async Task&lt;Result&lt;PriceListImportResponse&gt;&gt; ImportAsync(
+        ImportPriceListRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        logger.LogInformation(
+            "Importing price list for vendor {VendorId}",
+            request.VendorId);
+
+        // Step 1: let Infrastructure read spreadsheet rows.
+        IReadOnlyList&lt;SpreadsheetPriceRow&gt; rows =
+            await spreadsheetPriceListReader.ReadAsync(
+                request.FileContent,
+                cancellationToken);
+
+        // Step 2: load or create the aggregate root.
+        PriceList? priceList = await priceListRepository.GetByVendorAsync(
+            request.VendorId,
+            cancellationToken);
+
+        if (priceList is null)
+        {
+            Result&lt;PriceList&gt; createResult = PriceList.Create(
+                request.VendorId,
+                dateTimeProvider.UtcNow);
+
+            if (createResult.IsFailure)
+            {
+                return Result.Failure&lt;PriceListImportResponse&gt;(createResult.Error);
+            }
+
+            priceList = createResult.Value;
+        }
+
+        // Step 3: feed each parsed row into domain behavior.
+        foreach (SpreadsheetPriceRow row in rows)
+        {
+            Result applyResult = priceList.ApplyImportedPrice(
+                row.Sku,
+                row.Currency,
+                row.UnitPrice,
+                row.EffectiveFrom);
+
+            if (applyResult.IsFailure)
+            {
+                return Result.Failure&lt;PriceListImportResponse&gt;(applyResult.Error);
+            }
+        }
+
+        // Step 4: persist the resulting aggregate state.
+        await priceListRepository.SaveAsync(priceList, cancellationToken);
+
+        return Result.Success(new PriceListImportResponse(
+            rows.Count,
+            priceList.Id));
+    }
+}</code></pre>
+
+            <div class="context-note">
+                Reading cell values is not domain knowledge. The domain only starts once the spreadsheet rows have been translated into meaningful application input.
+            </div>
+        </section>
+    </div>
+
+    <div class="col-xl-6">
+        <div class="d-grid gap-3">
+            <section class="surface-card surface-card--muted mermaid-card">
+                <div class="surface-card__header">
+                    <div>
+                        <span class="section-kicker">Lane diagram</span>
+                        <h2>Request path by layer</h2>
+                    </div>
+                    <div class="icon-badge">
+                        <i class="bi bi-bezier2"></i>
+                    </div>
+                </div>
+
+                <p class="surface-card__intro">
+                    The import becomes clean once the spreadsheet reader turns raw cells into row DTOs and the aggregate decides what each row means for the business.
+                </p>
+
+                <div class="mermaid-frame">
+                    <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor P as Presentation
+    participant A as Application
+    participant D as Domain
+    participant I as Infrastructure
+
+    P->>A: Import request with normalized file content
+    Note over P,A: Raw upload handling happened before this boundary
+    A->>I: Read spreadsheet rows
+    I-->>A: Parsed row DTOs
+    A->>I: Load price list
+    I-->>A: Existing aggregate or null
+    A->>D: Create price list if needed
+    D-->>A: Aggregate ready
+    loop For each imported row
+        A->>D: Apply imported price
+        D-->>A: Accepted or rejected
+    end
+    A->>I: Save price list
+    I-->>A: Persisted
+    A-->>P: Return result
+                    </div>
+                </div>
+            </section>
+
+            <section class="surface-card surface-card--muted">
+                <div class="surface-card__header">
+                    <div>
+                        <span class="section-kicker">Step explanation</span>
+                        <h2>Why each step goes to that layer</h2>
+                    </div>
+                    <div class="icon-badge">
+                        <i class="bi bi-diagram-3"></i>
+                    </div>
+                </div>
+
+                <div class="d-grid gap-2">
+                    <div class="step-card step-header">
+                        <div class="step-card__icon">
+                            <i class="bi bi-1-circle"></i>
+                        </div>
+                        <div class="step-card__content">
+                            <strong>Step 1: let Infrastructure read spreadsheet rows</strong>
+                            <span>This goes to <strong>Infrastructure</strong> because reading Excel is document parsing with external libraries and file formats. It is technical translation from spreadsheet bytes into row DTOs.</span>
+                        </div>
+                    </div>
+
+                    <div class="step-card step-header">
+                        <div class="step-card__icon">
+                            <i class="bi bi-2-circle"></i>
+                        </div>
+                        <div class="step-card__content">
+                            <strong>Step 2: load or create the aggregate root</strong>
+                            <span>This step is split. Loading existing state is <strong>Infrastructure</strong> because it comes from persistence. Creating a new aggregate through <code>PriceList.Create(...)</code> is <strong>Domain</strong> because the entity factory enforces business invariants.</span>
+                        </div>
+                    </div>
+
+                    <div class="step-card step-success">
+                        <div class="step-card__icon">
+                            <i class="bi bi-3-circle"></i>
+                        </div>
+                        <div class="step-card__content">
+                            <strong>Step 3: feed each parsed row into domain behavior</strong>
+                            <span>This goes to <strong>Domain</strong> because accepting or rejecting an imported price is a business rule. Currency validity, effective dates, duplicates, and ranges belong on the aggregate.</span>
+                        </div>
+                    </div>
+
+                    <div class="step-card step-error">
+                        <div class="step-card__icon">
+                            <i class="bi bi-4-circle"></i>
+                        </div>
+                        <div class="step-card__content">
+                            <strong>Step 4: persist the resulting aggregate state</strong>
+                            <span>This goes to <strong>Infrastructure</strong> because saving the updated aggregate is still persistence work. Repository implementation, ORM mapping, and database access are technical concerns.</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+
+<section class="surface-card surface-card--muted mt-3">
+    <div class="surface-card__header">
+        <div>
+            <span class="section-kicker">Internet references</span>
+            <h2>Common source material behind this example</h2>
+        </div>
+        <div class="icon-badge">
+            <i class="bi bi-link-45deg"></i>
+        </div>
+    </div>
+
+    <ul class="list-unstyled d-grid gap-2 m-0 p-0">
+        <li>
+            <a class="guide-link" href="https://learn.microsoft.com/en-us/aspnet/core/mvc/models/file-uploads?view=aspnetcore-10.0" target="_blank" rel="noreferrer">
+                <span>ASP.NET Core file uploads</span>
+                <small>Shows why upload-specific concerns start in Presentation and why storage should use a dedicated upload area.</small>
+            </a>
+        </li>
+        <li>
+            <a class="guide-link" href="https://learn.microsoft.com/en-us/office/open-xml/spreadsheet/how-to-open-a-spreadsheet-document-for-read-only-access" target="_blank" rel="noreferrer">
+                <span>Open XML SDK: open a spreadsheet for read-only access</span>
+                <small>Represents the typical infrastructure reader shape used to inspect Excel content without treating parsing as domain logic.</small>
+            </a>
+        </li>
+    </ul>
+</section>

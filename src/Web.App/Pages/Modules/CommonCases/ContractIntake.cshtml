@@ -1,0 +1,243 @@
+@page
+@{
+    ViewData["Title"] = "Contract Intake from Word";
+}
+
+<section class="page-hero page-hero--red mb-4">
+    <a asp-page="/Index" class="back-link">
+        <i class="bi bi-arrow-left"></i>
+        <span>Back to overview</span>
+    </a>
+
+    <div class="page-hero__content">
+        <div class="page-hero__copy">
+            <span class="eyebrow">Guide 4</span>
+            <h1>Contract Intake from Word</h1>
+            <p>
+                A user uploads a contract draft. Application coordinates storage and extraction, Infrastructure saves the original file and reads the Word document,
+                and Domain decides whether the draft contains the minimum business content to enter the system.
+            </p>
+        </div>
+
+        <div class="page-hero__aside">
+            <span class="info-chip">Store the original file outside the app tree</span>
+            <span class="info-chip">Word parsing stays in Infrastructure</span>
+            <span class="info-chip">Clause validation belongs to Domain</span>
+        </div>
+    </div>
+</section>
+
+<div class="row g-3 align-items-start">
+    <div class="col-xl-6">
+        <section class="surface-card surface-card--red">
+            <div class="surface-card__header">
+                <div>
+                    <span class="section-kicker">Orchestration</span>
+                    <h2>Application method</h2>
+                </div>
+                <div class="icon-badge">
+                    <i class="bi bi-journal-code"></i>
+                </div>
+            </div>
+
+            <p class="surface-card__intro">
+                Informational sample only. The goal is to show where the Word-reading concern ends and where actual business interpretation starts.
+            </p>
+
+            <pre class="orchestration-code"><code>internal sealed class ContractIntakeService(
+    IContractRepository contractRepository,
+    IFileStorage fileStorage,
+    IWordDocumentReader wordDocumentReader,
+    IDateTimeProvider dateTimeProvider,
+    ILogger&lt;ContractIntakeService&gt; logger) : IContractIntakeService, IScopedService
+{
+    public async Task&lt;Result&lt;Guid&gt;&gt; IntakeAsync(
+        IntakeContractRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        logger.LogInformation(
+            "Starting contract intake for {OriginalFileName}",
+            request.OriginalFileName);
+
+        // Step 1: persist the uploaded binary in a dedicated storage area.
+        StoredFileDescriptor storedFile = await fileStorage.SaveUploadAsync(
+            request.OriginalFileName,
+            request.FileContent,
+            cancellationToken);
+
+        // Step 2: let Infrastructure extract readable content from Word.
+        WordDocumentContent documentContent = await wordDocumentReader.ReadAsync(
+            storedFile.StoragePath,
+            cancellationToken);
+
+        // Step 3: create the aggregate from business-relevant content.
+        Result&lt;ContractDraft&gt; contractResult = ContractDraft.Create(
+            request.SupplierId,
+            documentContent.Title,
+            documentContent.EffectiveDate,
+            documentContent.FullText,
+            dateTimeProvider.UtcNow);
+
+        if (contractResult.IsFailure)
+        {
+            return Result.Failure&lt;Guid&gt;(contractResult.Error);
+        }
+
+        ContractDraft contract = contractResult.Value;
+
+        // Step 4: let the aggregate validate required clauses.
+        Result clauseValidation = contract.ValidateRequiredClauses();
+        if (clauseValidation.IsFailure)
+        {
+            return Result.Failure&lt;Guid&gt;(clauseValidation.Error);
+        }
+
+        // Step 5: persist the accepted draft.
+        await contractRepository.SaveAsync(contract, cancellationToken);
+
+        return Result.Success(contract.Id);
+    }
+}</code></pre>
+
+            <div class="context-note">
+                Parsing a <code>.docx</code> package is document technology. Determining whether the extracted content is a valid contract draft is business logic.
+                That split is what keeps the use case understandable.
+            </div>
+        </section>
+    </div>
+
+    <div class="col-xl-6">
+        <div class="d-grid gap-3">
+            <section class="surface-card surface-card--muted mermaid-card">
+                <div class="surface-card__header">
+                    <div>
+                        <span class="section-kicker">Lane diagram</span>
+                        <h2>Request path by layer</h2>
+                    </div>
+                    <div class="icon-badge">
+                        <i class="bi bi-bezier2"></i>
+                    </div>
+                </div>
+
+                <p class="surface-card__intro">
+                    This case is useful because the document is business-important, but the act of reading a Word package is still technical infrastructure work.
+                </p>
+
+                <div class="mermaid-frame">
+                    <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor P as Presentation
+    participant A as Application
+    participant D as Domain
+    participant I as Infrastructure
+
+    P->>A: Intake contract request with normalized file content
+    A->>I: Save original upload
+    I-->>A: Stored file descriptor
+    A->>I: Read Word document
+    I-->>A: Title, date, full text
+    A->>D: Create contract draft
+    D-->>A: Aggregate created
+    A->>D: Validate required clauses
+    D-->>A: Accepted or rejected
+    A->>I: Save draft
+    I-->>A: Persisted
+    A-->>P: Return result
+                    </div>
+                </div>
+            </section>
+
+            <section class="surface-card surface-card--muted">
+                <div class="surface-card__header">
+                    <div>
+                        <span class="section-kicker">Step explanation</span>
+                        <h2>Why each step goes to that layer</h2>
+                    </div>
+                    <div class="icon-badge">
+                        <i class="bi bi-diagram-3"></i>
+                    </div>
+                </div>
+
+                <div class="d-grid gap-2">
+                    <div class="step-card step-header">
+                        <div class="step-card__icon">
+                            <i class="bi bi-1-circle"></i>
+                        </div>
+                        <div class="step-card__content">
+                            <strong>Step 1: persist the uploaded binary in a dedicated storage area</strong>
+                            <span>This goes to <strong>Infrastructure</strong> because writing an uploaded file to storage is an IO concern. File systems, blob storage, and upload APIs are technical dependencies.</span>
+                        </div>
+                    </div>
+
+                    <div class="step-card step-header">
+                        <div class="step-card__icon">
+                            <i class="bi bi-2-circle"></i>
+                        </div>
+                        <div class="step-card__content">
+                            <strong>Step 2: let Infrastructure extract readable content from Word</strong>
+                            <span>This goes to <strong>Infrastructure</strong> because parsing a Word document means dealing with Open XML packages and document-reading libraries. That is technology work, not business logic.</span>
+                        </div>
+                    </div>
+
+                    <div class="step-card step-success">
+                        <div class="step-card__icon">
+                            <i class="bi bi-3-circle"></i>
+                        </div>
+                        <div class="step-card__content">
+                            <strong>Step 3: create the aggregate from business-relevant content</strong>
+                            <span>This goes to <strong>Domain</strong> because aggregate creation is where the contract draft starts enforcing business meaning and invariants. The parsed text becomes business data at this point.</span>
+                        </div>
+                    </div>
+
+                    <div class="step-card step-error">
+                        <div class="step-card__icon">
+                            <i class="bi bi-4-circle"></i>
+                        </div>
+                        <div class="step-card__content">
+                            <strong>Step 4: let the aggregate validate required clauses</strong>
+                            <span>This goes to <strong>Domain</strong> because clause presence and contract validity are business rules. The entity decides whether the extracted content is acceptable as a real contract draft.</span>
+                        </div>
+                    </div>
+
+                    <div class="step-card step-error">
+                        <div class="step-card__icon">
+                            <i class="bi bi-5-circle"></i>
+                        </div>
+                        <div class="step-card__content">
+                            <strong>Step 5: persist the accepted draft</strong>
+                            <span>This goes to <strong>Infrastructure</strong> because saving the accepted draft is persistence. Database or storage writes always depend on external technology and runtime resources.</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+
+<section class="surface-card surface-card--muted mt-3">
+    <div class="surface-card__header">
+        <div>
+            <span class="section-kicker">Internet references</span>
+            <h2>Common source material behind this example</h2>
+        </div>
+        <div class="icon-badge">
+            <i class="bi bi-link-45deg"></i>
+        </div>
+    </div>
+
+    <ul class="list-unstyled d-grid gap-2 m-0 p-0">
+        <li>
+            <a class="guide-link" href="https://learn.microsoft.com/en-us/aspnet/core/mvc/models/file-uploads?view=aspnetcore-10.0" target="_blank" rel="noreferrer">
+                <span>ASP.NET Core file uploads</span>
+                <small>Microsoft recommends dedicated upload storage and clear security boundaries, which supports keeping upload mechanics out of Domain.</small>
+            </a>
+        </li>
+        <li>
+            <a class="guide-link" href="https://learn.microsoft.com/en-us/office/open-xml/word/how-to-open-a-word-processing-document-for-read-only-access" target="_blank" rel="noreferrer">
+                <span>Open XML SDK: open a Word document for read-only access</span>
+                <small>Illustrates the technical document-reading concern that belongs behind an infrastructure reader.</small>
+            </a>
+        </li>
+    </ul>
+</section>

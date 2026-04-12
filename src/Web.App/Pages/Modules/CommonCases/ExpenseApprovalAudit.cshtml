@@ -1,0 +1,248 @@
+@page
+@{
+    ViewData["Title"] = "Expense Approval + Audit Trail";
+}
+
+<section class="page-hero page-hero--blue mb-4">
+    <a asp-page="/Index" class="back-link">
+        <i class="bi bi-arrow-left"></i>
+        <span>Back to overview</span>
+    </a>
+
+    <div class="page-hero__content">
+        <div class="page-hero__copy">
+            <span class="eyebrow">Guide 1</span>
+            <h1>Expense Approval + Audit Trail</h1>
+            <p>
+                A manager approves an expense. The Application method sequences the use case, the aggregate enforces approval rules,
+                and Infrastructure performs the actual audit write and log sink write.
+            </p>
+        </div>
+
+        <div class="page-hero__aside">
+            <span class="info-chip">Approval rule stays in Domain</span>
+            <span class="info-chip">Audit write is an Infrastructure side effect</span>
+            <span class="info-chip">Application decides when the audit entry must happen</span>
+        </div>
+    </div>
+</section>
+
+<div class="row g-3 align-items-start">
+    <div class="col-xl-6">
+        <section class="surface-card surface-card--blue">
+            <div class="surface-card__header">
+                <div>
+                    <span class="section-kicker">Orchestration</span>
+                    <h2>Application method</h2>
+                </div>
+                <div class="icon-badge">
+                    <i class="bi bi-journal-code"></i>
+                </div>
+            </div>
+
+            <p class="surface-card__intro">
+                Informational sample only. This is rendered as HTML text so the team can inspect the placement decisions without running any code.
+            </p>
+
+            <pre class="orchestration-code"><code>internal sealed class ExpenseApprovalService(
+    IExpenseRepository expenseRepository,
+    IAuditTrailWriter auditTrailWriter,
+    IDateTimeProvider dateTimeProvider,
+    ILogger&lt;ExpenseApprovalService&gt; logger) : IExpenseApprovalService, IScopedService
+{
+    public async Task&lt;Result&lt;Guid&gt;&gt; ApproveExpenseAsync(
+        ApproveExpenseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        logger.LogInformation(
+            "Starting expense approval for {ExpenseId}",
+            request.ExpenseId);
+
+        // Step 1: load the aggregate from persistence.
+        ExpenseReport? expense = await expenseRepository.GetByIdAsync(
+            request.ExpenseId,
+            cancellationToken);
+
+        if (expense is null)
+        {
+            return Result.Failure&lt;Guid&gt;(
+                ExpenseErrors.NotFound(request.ExpenseId));
+        }
+
+        // Step 2: let the aggregate enforce review permissions.
+        Result authorizationResult = expense.EnsureManagerCanReview(
+            request.ManagerId);
+
+        if (authorizationResult.IsFailure)
+        {
+            return Result.Failure&lt;Guid&gt;(authorizationResult.Error);
+        }
+
+        // Step 3: let the aggregate perform the state transition.
+        Result approvalResult = expense.Approve(
+            request.ManagerId,
+            request.DecisionNote,
+            dateTimeProvider.UtcNow);
+
+        if (approvalResult.IsFailure)
+        {
+            return Result.Failure&lt;Guid&gt;(approvalResult.Error);
+        }
+
+        // Step 4: persist the new aggregate state.
+        await expenseRepository.SaveAsync(expense, cancellationToken);
+
+        // Step 5: record the use-case audit entry.
+        await auditTrailWriter.WriteAsync(
+            new AuditEntry(
+                "ExpenseApproved",
+                expense.Id,
+                request.ManagerId,
+                dateTimeProvider.UtcNow),
+            cancellationToken);
+
+        logger.LogInformation(
+            "Expense {ExpenseId} approved by {ManagerId}",
+            expense.Id,
+            request.ManagerId);
+
+        return Result.Success(expense.Id);
+    }
+}</code></pre>
+
+            <div class="context-note">
+                The business requirement is <strong>approve the expense and record an audit event</strong>. Application owns that sequence.
+                Writing to Serilog, a database audit table, or a file sink is still a technical concern, so the actual sink implementation stays in Infrastructure.
+            </div>
+        </section>
+    </div>
+
+    <div class="col-xl-6">
+        <div class="d-grid gap-3">
+            <section class="surface-card surface-card--muted mermaid-card">
+                <div class="surface-card__header">
+                    <div>
+                        <span class="section-kicker">Lane diagram</span>
+                        <h2>Request path by layer</h2>
+                    </div>
+                    <div class="icon-badge">
+                        <i class="bi bi-bezier2"></i>
+                    </div>
+                </div>
+
+                <p class="surface-card__intro">
+                    The key split is between the business decision to audit, which belongs to the use case, and the physical audit/log write, which belongs to Infrastructure.
+                </p>
+
+                <div class="mermaid-frame">
+                    <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor P as Presentation
+    participant A as Application
+    participant D as Domain
+    participant I as Infrastructure
+
+    P->>A: Approve expense request
+    A->>I: Load expense report
+    I-->>A: Aggregate data
+    A->>D: Ensure manager can review
+    D-->>A: Allowed
+    A->>D: Approve expense
+    D-->>A: State updated
+    A->>I: Save expense report
+    I-->>A: Persisted
+    A->>I: Write audit entry
+    I-->>A: Stored in audit sink
+    A-->>P: Return result
+                    </div>
+                </div>
+            </section>
+
+            <section class="surface-card surface-card--muted">
+                <div class="surface-card__header">
+                    <div>
+                        <span class="section-kicker">Step explanation</span>
+                        <h2>Why each step goes to that layer</h2>
+                    </div>
+                    <div class="icon-badge">
+                        <i class="bi bi-diagram-3"></i>
+                    </div>
+                </div>
+
+                <div class="d-grid gap-2">
+                    <div class="step-card step-header">
+                        <div class="step-card__icon">
+                            <i class="bi bi-1-circle"></i>
+                        </div>
+                        <div class="step-card__content">
+                            <strong>Step 1: load the aggregate from persistence</strong>
+                            <span>This goes to <strong>Infrastructure</strong> because database load is an external dependency concern. EF Core, SQL access, and repository implementation all depend on technology and IO, not on pure business rules.</span>
+                        </div>
+                    </div>
+
+                    <div class="step-card step-header">
+                        <div class="step-card__icon">
+                            <i class="bi bi-2-circle"></i>
+                        </div>
+                        <div class="step-card__content">
+                            <strong>Step 2: let the aggregate enforce review permissions</strong>
+                            <span>This goes to <strong>Domain</strong> because the permission rule is part of the business meaning of an expense report. The entity decides whether the manager may review it, and that rule can run as pure code without infrastructure.</span>
+                        </div>
+                    </div>
+
+                    <div class="step-card step-success">
+                        <div class="step-card__icon">
+                            <i class="bi bi-3-circle"></i>
+                        </div>
+                        <div class="step-card__content">
+                            <strong>Step 3: let the aggregate perform the state transition</strong>
+                            <span>This also goes to <strong>Domain</strong> because approval changes business state. <code>ExpenseReport.Approve(...)</code> is exactly where invariants and legal transitions should live.</span>
+                        </div>
+                    </div>
+
+                    <div class="step-card step-error">
+                        <div class="step-card__icon">
+                            <i class="bi bi-4-circle"></i>
+                        </div>
+                        <div class="step-card__content">
+                            <strong>Step 4: persist the new aggregate state</strong>
+                            <span>This goes to <strong>Infrastructure</strong> because save/update/delete are persistence mechanics. The database transaction, ORM mapping, and actual write to storage are technical details.</span>
+                        </div>
+                    </div>
+
+                    <div class="step-card step-error">
+                        <div class="step-card__icon">
+                            <i class="bi bi-5-circle"></i>
+                        </div>
+                        <div class="step-card__content">
+                            <strong>Step 5: record the use-case audit entry</strong>
+                            <span>The decision that an audit record is required belongs to <strong>Application orchestration</strong>, but the actual audit write belongs to <strong>Infrastructure</strong> because it uses a concrete sink such as a database table, file, or logging platform.</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+
+<section class="surface-card surface-card--muted mt-3">
+    <div class="surface-card__header">
+        <div>
+            <span class="section-kicker">Internet references</span>
+            <h2>Common source material behind this example</h2>
+        </div>
+        <div class="icon-badge">
+            <i class="bi bi-link-45deg"></i>
+        </div>
+    </div>
+
+    <ul class="list-unstyled d-grid gap-2 m-0 p-0">
+        <li>
+            <a class="guide-link" href="https://learn.microsoft.com/en-us/dotnet/core/diagnostics/logging-tracing?view=aspnetcore-7.0" target="_blank" rel="noreferrer">
+                <span>.NET logging and tracing</span>
+                <small>Microsoft describes <code>ILogger</code> as the standard logging infrastructure, which supports the infrastructure-placement argument for sink writes.</small>
+            </a>
+        </li>
+    </ul>
+</section>

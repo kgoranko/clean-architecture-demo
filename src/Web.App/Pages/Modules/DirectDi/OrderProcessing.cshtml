@@ -1,0 +1,174 @@
+@page
+@model OrderProcessingModel
+@{
+    ViewData["Title"] = "Order Processing";
+}
+
+<section class="page-hero page-hero--cyan mb-4">
+    <a asp-page="/Index" class="back-link">
+        <i class="bi bi-arrow-left"></i>
+        <span>Back to overview</span>
+    </a>
+
+    <div class="page-hero__content">
+        <div class="page-hero__copy">
+            <span class="eyebrow">Demo 1</span>
+            <h1>Direct DI Service Call</h1>
+            <p>
+                Order processing enters the Application layer through <code>IOrderProcessingService</code>. One service
+                coordinates validation, pricing, persistence, payment, and email.
+            </p>
+        </div>
+
+        <div class="page-hero__aside">
+            <span class="info-chip">Single application service owns the orchestration path</span>
+            <span class="info-chip">Strong fit for compact, explicit request handling</span>
+            <span class="info-chip">Tradeoff: cross-cutting concerns remain manual</span>
+        </div>
+    </div>
+</section>
+
+<div class="row g-3 align-items-start">
+    <div class="col-xl-5">
+        <section class="surface-card surface-card--cyan">
+            <div class="surface-card__header">
+                <div>
+                    <span class="section-kicker">Input</span>
+                    <h2>Process an order</h2>
+                </div>
+                <div class="icon-badge">
+                    <i class="bi bi-bag-check"></i>
+                </div>
+            </div>
+
+            <p class="surface-card__intro">
+                Use real catalog values to drive repository and domain failures. The optional payment trigger remains the only deliberate infrastructure failure switch.
+            </p>
+
+            <form method="post" class="form-stack">
+                <div>
+                    <label class="form-label fw-semibold">Customer Name</label>
+                    <input type="text" class="form-control" asp-for="CustomerName" value="John Doe" />
+                </div>
+
+                <div>
+                    <label class="form-label fw-semibold">Product</label>
+                    <input type="text" class="form-control" asp-for="ProductName" value="Laptop" />
+                    <div class="form-text small">
+                        Catalog values: <code>Laptop</code>, <code>Phone</code>, <code>Tablet</code>, <code>Headphones</code>. Any other product name triggers <strong>Product Not Found</strong>.
+                    </div>
+                </div>
+
+                <div>
+                    <label class="form-label fw-semibold">Quantity</label>
+                    <input type="number" class="form-control" asp-for="Quantity" value="2" min="1" />
+                    <div class="form-text small">
+                        Current demo stock: <code>Laptop=50</code>, <code>Phone=100</code>, <code>Tablet=30</code>, <code>Headphones=200</code>. A quantity above stock triggers <strong>Insufficient Stock</strong>.
+                    </div>
+                </div>
+
+                <div>
+                    <label class="form-label fw-semibold">Payment Trigger</label>
+                    <input type="text" class="form-control form-control-sm" asp-for="PaymentTrigger" placeholder="decline" />
+                    <div class="form-text small">
+                        Optional demo switch. Enter <code>decline</code> to trigger <strong>Payment Declined</strong>. Leave empty for the normal payment flow.
+                    </div>
+                </div>
+
+                <button type="submit" class="btn app-btn app-btn--cyan">Run order flow</button>
+            </form>
+        </section>
+
+        @if (Model.HasResult)
+        {
+            <section class="surface-card status-card mt-3 @(Model.IsSuccess ? "status-card--success" : "status-card--danger")">
+                <div class="surface-card__header">
+                    <div>
+                        <span class="section-kicker">Result</span>
+                        <h2>@(Model.IsSuccess ? "Order completed" : "Order failed")</h2>
+                    </div>
+                    <span class="status-badge">@(Model.IsSuccess ? "Success" : "Error")</span>
+                </div>
+
+                @if (Model.IsSuccess && Model.Response != null)
+                {
+                    <div class="result-banner result-banner--success">
+                        <div>
+                            <strong>@Model.Response.Message</strong>
+                            <small>Order ID: @Model.Response.OrderId</small>
+                        </div>
+                        <div class="result-banner__meta">@Model.Response.TotalPrice.ToString("C")</div>
+                    </div>
+                }
+                else
+                {
+                    <div class="result-banner result-banner--danger">
+                        <div>
+                            <strong>@Model.ErrorCode</strong>
+                            <small>@Model.ErrorDescription</small>
+                        </div>
+                        <div class="result-banner__meta result-banner__meta--label">@Model.ErrorLayer</div>
+                    </div>
+
+                    <div class="context-note">
+                        The failure originated in the <strong>@Model.ErrorLayer</strong> layer and returned to the Razor
+                        Page through the shared <code>Result&lt;T&gt;</code> contract.
+                    </div>
+                }
+            </section>
+        }
+    </div>
+
+    <div class="col-xl-7">
+        <div class="d-grid gap-3">
+            <section class="surface-card surface-card--muted mermaid-card">
+                <div class="surface-card__header">
+                    <div>
+                        <span class="section-kicker">Pipeline</span>
+                        <h2>Request path by layer</h2>
+                    </div>
+                    <div class="icon-badge">
+                        <i class="bi bi-bezier2"></i>
+                    </div>
+                </div>
+
+                <p class="surface-card__intro">
+                    One application service owns the sequence. The diagram keeps Application as the caller so you can see each outbound call and the response that returns to the orchestrator.
+                </p>
+
+                <div class="mermaid-frame">
+                    <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor P as Presentation
+    participant A as Application
+    participant D as Domain
+    participant I as Infrastructure
+
+    P->>A: Submit form
+    Note over A: Build request and start orchestration
+    A->>I: Check product
+    I-->>A: Exists + stock + price
+    A->>D: Validate order
+    D-->>A: Valid
+    A->>D: Calculate total
+    D-->>A: Total ready
+    A->>D: Create aggregate
+    D-->>A: Order created
+    A->>I: Process payment
+    I-->>A: Payment approved
+    A->>D: Confirm order
+    D-->>A: Order confirmed
+    A->>I: Save order
+    I-->>A: Persisted
+    A->>D: Raise saved event
+    D-->>A: OrderSavedDomainEvent
+    A->>I: Send confirmation email
+    I-->>A: Email sent
+    A-->>P: Return result
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
