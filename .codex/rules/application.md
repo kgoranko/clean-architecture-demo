@@ -9,11 +9,11 @@ This repository uses both:
 
 The active CQRS path uses:
 
-- `ICommandDispatcher`
-- `ICommandHandler<TCommand, TResponse>`
-- `ICommandBehavior<TCommand, TResponse>`
+- `IDispatcher`
+- `IRequestHandler<TRequest, TResponse>`
+- `IRequestBehavior<TRequest, TResponse>`
 
-UI entry points should depend on `ICommandDispatcher` rather than resolving handlers directly.
+UI entry points should depend on `IDispatcher` rather than resolving handlers directly. Commands and queries can keep semantic handler wrappers such as `ICommandHandler<TCommand, TResponse>` or `IQueryHandler<TQuery, TResponse>`, but those wrappers flow through the shared request dispatcher contracts.
 
 ## Folder Layout
 

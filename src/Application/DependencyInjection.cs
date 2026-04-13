@@ -16,13 +16,10 @@ public static class DependencyInjection
         Assembly applicationAssembly = typeof(DependencyInjection).Assembly;
 
         services.Scan(scan => scan.FromAssemblies(applicationAssembly)
-            .AddClasses(classes => classes.AssignableTo(typeof(IQueryHandler<,>)), publicOnly: false)
+            .AddClasses(classes => classes.AssignableTo(typeof(IRequestHandler<,>)), publicOnly: false)
                 .AsImplementedInterfaces()
                 .WithScopedLifetime()
             .AddClasses(classes => classes.AssignableTo(typeof(ICommandHandler<>)), publicOnly: false)
-                .AsImplementedInterfaces()
-                .WithScopedLifetime()
-            .AddClasses(classes => classes.AssignableTo(typeof(ICommandHandler<,>)), publicOnly: false)
                 .AsImplementedInterfaces()
                 .WithScopedLifetime()
             .AddClasses(classes => classes.AssignableTo(typeof(IDomainEventHandler<>)), publicOnly: false)
@@ -41,9 +38,9 @@ public static class DependencyInjection
         // Register FluentValidation validators (auto-discovered from this assembly)
         services.AddValidatorsFromAssembly(applicationAssembly, includeInternalTypes: true);
 
-        services.AddScoped(typeof(ICommandBehavior<,>), typeof(ValidationBehavior<,>));
-        services.AddScoped(typeof(ICommandBehavior<,>), typeof(LoggingBehavior<,>));
-        services.AddScoped(typeof(CommandExecutor<,>));
+        services.AddScoped(typeof(IRequestBehavior<,>), typeof(ValidationBehavior<,>));
+        services.AddScoped(typeof(IRequestBehavior<,>), typeof(LoggingBehavior<,>));
+        services.AddScoped(typeof(RequestExecutor<,>));
 
         return services;
     }

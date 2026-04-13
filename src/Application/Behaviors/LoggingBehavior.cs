@@ -6,31 +6,31 @@ using SharedKernel;
 
 namespace Application.Behaviors;
 
-internal sealed class LoggingBehavior<TCommand, TResponse>(
-    ILogger<LoggingBehavior<TCommand, TResponse>> logger)
-    : ICommandBehavior<TCommand, TResponse>
-    where TCommand : ICommand<TResponse>
+internal sealed class LoggingBehavior<TRequest, TResponse>(
+    ILogger<LoggingBehavior<TRequest, TResponse>> logger)
+    : IRequestBehavior<TRequest, TResponse>
+    where TRequest : IRequest<TResponse>
 {
     public async Task<Result<TResponse>> Handle(
-        TCommand command,
+        TRequest request,
         Func<Task<Result<TResponse>>> next,
         CancellationToken cancellationToken)
     {
-        string commandName = typeof(TCommand).Name;
+        string requestName = typeof(TRequest).Name;
 
-        logger.LogInformation("Processing command {Command}", commandName);
+        logger.LogInformation("Processing request {Request}", requestName);
 
         Result<TResponse> result = await next();
 
         if (result.IsSuccess)
         {
-            logger.LogInformation("Completed command {Command}", commandName);
+            logger.LogInformation("Completed request {Request}", requestName);
         }
         else
         {
             using (LogContext.PushProperty("Error", result.Error, true))
             {
-                logger.LogError("Completed command {Command} with error", commandName);
+                logger.LogError("Completed request {Request} with error", requestName);
             }
         }
 

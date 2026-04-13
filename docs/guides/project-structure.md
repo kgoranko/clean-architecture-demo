@@ -108,11 +108,11 @@ Use the repo's local rule:
 Current examples:
 
 - `DirectDi` demo: application service
-- `CQRS` demo: command dispatcher pipeline
+- `CQRS` demo: request dispatcher pipeline
 
 ## DI Registration Style
 
 - concrete services declare lifetime with `ITransientService`, `IScopedService`, or `ISingletonService`
 - `Application` and `Infrastructure` register those services through Scrutor scanning with `AsSelfWithInterfaces()`
-- CQRS UI entry points should depend on `ICommandDispatcher`
-- command validation and logging belong in `ICommandBehavior<TCommand, TResponse>` implementations
+- CQRS UI entry points should depend on `IDispatcher`
+- validation and logging belong in `IRequestBehavior<TRequest, TResponse>` implementations

@@ -3,11 +3,11 @@ using SharedKernel;
 
 namespace Application.Abstractions.Behaviors;
 
-public interface ICommandBehavior<TCommand, TResponse>
-    where TCommand : ICommand<TResponse>
+public interface IRequestBehavior<TRequest, TResponse>
+    where TRequest : IRequest<TResponse>
 {
     Task<Result<TResponse>> Handle(
-        TCommand command,
+        TRequest request,
         Func<Task<Result<TResponse>>> next,
         CancellationToken cancellationToken);
 }

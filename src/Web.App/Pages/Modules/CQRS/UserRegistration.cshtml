@@ -15,13 +15,13 @@
             <span class="eyebrow">Demo 2</span>
             <h1>CQRS + Dispatcher</h1>
             <p>
-                Registration enters the Application layer as a <code>RegisterUserCommand</code>. The command dispatcher
+                Registration enters the Application layer as a <code>RegisterUserCommand</code>. The request dispatcher
                 runs validation and logging behaviors before the handler performs the business workflow.
             </p>
         </div>
 
         <div class="page-hero__aside">
-            <span class="info-chip">Command enters through <code>ICommandDispatcher</code></span>
+            <span class="info-chip">Command enters through <code>IDispatcher</code></span>
             <span class="info-chip">Behaviors absorb validation and logging concerns</span>
             <span class="info-chip">Tradeoff: more ceremony and less direct execution flow</span>
         </div>
@@ -176,7 +176,7 @@
                 </div>
 
                 <p class="surface-card__intro">
-                    The page enters the Application layer through a command dispatcher. The diagram keeps Application as the caller so each outbound dependency call and returned result stays explicit.
+                    The page enters the Application layer through the request dispatcher. The diagram keeps Application as the caller so each outbound dependency call and returned result stays explicit.
                 </p>
 
                 <div class="mermaid-frame">

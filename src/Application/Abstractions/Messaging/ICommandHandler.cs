@@ -1,4 +1,4 @@
-﻿using SharedKernel;
+using SharedKernel;
 
 namespace Application.Abstractions.Messaging;
 
@@ -9,7 +9,5 @@ public interface ICommandHandler<in TCommand>
 }
 
 public interface ICommandHandler<in TCommand, TResponse>
-    where TCommand : ICommand<TResponse>
-{
-    Task<Result<TResponse>> Handle(TCommand command, CancellationToken cancellationToken);
-}
+    : IRequestHandler<TCommand, TResponse>
+    where TCommand : ICommand<TResponse>;

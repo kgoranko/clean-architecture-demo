@@ -6,17 +6,17 @@ using SharedKernel;
 
 namespace Application.Behaviors;
 
-internal sealed class ValidationBehavior<TCommand, TResponse>(
-    IEnumerable<IValidator<TCommand>> validators)
-    : ICommandBehavior<TCommand, TResponse>
-    where TCommand : ICommand<TResponse>
+internal sealed class ValidationBehavior<TRequest, TResponse>(
+    IEnumerable<IValidator<TRequest>> validators)
+    : IRequestBehavior<TRequest, TResponse>
+    where TRequest : IRequest<TResponse>
 {
     public async Task<Result<TResponse>> Handle(
-        TCommand command,
+        TRequest request,
         Func<Task<Result<TResponse>>> next,
         CancellationToken cancellationToken)
     {
-        ValidationFailure[] validationFailures = await ValidateAsync(command, cancellationToken);
+        ValidationFailure[] validationFailures = await ValidateAsync(request, cancellationToken);
 
         if (validationFailures.Length == 0)
         {
@@ -27,7 +27,7 @@ internal sealed class ValidationBehavior<TCommand, TResponse>(
     }
 
     private async Task<ValidationFailure[]> ValidateAsync(
-        TCommand command,
+        TRequest request,
         CancellationToken cancellationToken)
     {
         if (!validators.Any())
@@ -35,7 +35,7 @@ internal sealed class ValidationBehavior<TCommand, TResponse>(
             return [];
         }
 
-        var context = new ValidationContext<TCommand>(command);
+        var context = new ValidationContext<TRequest>(request);
 
         ValidationResult[] validationResults = await Task.WhenAll(
             validators.Select(validator => validator.ValidateAsync(context, cancellationToken)));

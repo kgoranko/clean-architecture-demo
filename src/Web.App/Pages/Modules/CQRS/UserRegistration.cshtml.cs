@@ -8,9 +8,9 @@ namespace Web.App.Pages.Modules.CQRS;
 
 /// <summary>
 /// Demonstrates a CQRS entry point that dispatches a command through
-/// ICommandDispatcher and the command behavior pipeline.
+/// IDispatcher and the request behavior pipeline.
 /// </summary>
-public class UserRegistrationModel(ICommandDispatcher commandDispatcher) : PageModel
+public class UserRegistrationModel(IDispatcher dispatcher) : PageModel
 {
     [BindProperty]
     public string Email { get; set; } = "new.user@company.com";
@@ -46,7 +46,7 @@ public class UserRegistrationModel(ICommandDispatcher commandDispatcher) : PageM
             LastName,
             EmailTrigger);
 
-        Result<Guid> result = await commandDispatcher.Send<RegisterUserCommand, Guid>(command, cancellationToken);
+        Result<Guid> result = await dispatcher.Send<RegisterUserCommand, Guid>(command, cancellationToken);
 
         HasResult = true;
         IsSuccess = result.IsSuccess;

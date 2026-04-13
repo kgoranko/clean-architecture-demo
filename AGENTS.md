@@ -54,7 +54,7 @@ Use `AGENTS.md` as the entry point and `.codex/rules/*` as the detailed source o
 - keep shared outbound application abstractions under `src/Application/Abstractions/{Concern}`
 - keep domain entities rich and prevent `new Entity { ... }` construction from `Application`
 - keep aggregate persistence contracts in `Domain` by default and orchestration-facing provider abstractions in `Application`
-- use `ICommandDispatcher` for CQRS entry points and `ICommandBehavior<TCommand, TResponse>` for command pipeline concerns
+- use `IDispatcher` for CQRS entry points and `IRequestBehavior<TRequest, TResponse>` for dispatcher pipeline concerns
 - keep the generic lifecycle-event path centralized in `DemoDbContext.SaveChangesAsync()`
 - use `.artifacts/codex-scripts/` for helper scripts instead of tracked folders
 - do not keep empty placeholder folders in `Web.App`
